@@ -2,12 +2,6 @@
   const C = window.CONFIG || {};
   const keys = { words:"vocab_words_cache_v1", progress:"vocab_progress_v1", sessions:"vocab_sessions_v1", outbox:"vocab_outbox_v1", wins:"vocab_lesson_stars_v1" };
   const colors = ["#d9534f","#e3b13e","#5cb85c","#4a9bc9","#9b7fc7","#e0894f","#6a4f96"];
-  const demo = [
-    ["1","curly","кудрявые","4","hair","She has curly hair."],["2","spiky","торчащие в разные стороны","4","hair","His hair is spiky."],["3","long hair","длинные волосы","4","hair","She has long hair."],["4","straight","прямые","4","hair","My hair is straight."],["5","blond","светлые","4","hair","He has blond hair."],
-    ["6","tall","высокий","5","appearance","He is tall."],["7","short","низкий","5","appearance","She is short."],["8","young","молодой","5","appearance","He is young."],["9","old","старый","5","appearance","The old man is kind."],["10","friendly","дружелюбный","5","appearance","Our teacher is friendly."],
-    ["11","clever","умный","6","character","She is clever."],["12","kind","добрый","6","character","He is kind."],["13","funny","смешной","6","character","That story is funny."],["14","brave","храбрый","6","character","The brave dog helped."],["15","shy","застенчивый","6","character","The shy boy smiled."],
-    ["16","eyes","глаза","7","face","Her eyes are blue."],["17","nose","нос","7","face","He has a small nose."],["18","ears","уши","7","face","My ears are cold."],["19","mouth","рот","7","face","Open your mouth."],["20","teeth","зубы","7","face","Brush your teeth."]
-  ].map(([id,en,ru,lesson,category,example])=>({id,en,ru,lesson,category,example,active:true}));
   const app = document.getElementById("app");
   let words = [], progress = {}, view = "home", queue = [], current = null, round = 0, run = [], mistakes = [], phase = "", chosen = "", letterPool = [], usedLetters = [], feedback = null, startedAt = 0, lessonStars = {};
   const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
@@ -30,7 +24,7 @@
   async function syncData() {
     let loaded=false;
     if(hasUrl(C.WORDS_CSV_URL)) { try { const fresh=parseCSV(await getText(C.WORDS_CSV_URL)); if(fresh.length){words=fresh;save(keys.words,words);loaded=true;} } catch {} }
-    if(!loaded) { const cached=load(keys.words,null); words=Array.isArray(cached)&&cached.length?cached:demo; }
+    if(!loaded) { const cached=load(keys.words,null); words=Array.isArray(cached)?cached:[]; }
     if(hasUrl(C.GOAL_CSV_URL)) { try { const goal=(await getText(C.GOAL_CSV_URL)).trim().replace(/^"|"$/g,""); window.goalText=goal; } catch { window.goalText=""; } }
     await flushOutbox();
   }
@@ -42,10 +36,16 @@
     return Object.keys(groups).sort((a,b)=>Number(a)-Number(b)||a.localeCompare(b)).map((lesson,i)=>{ const all=groups[lesson], complete=all.every(w=>getP(w).box===3); return `<div class="lesson-row"><div class="lesson-label">Урок ${esc(lesson)} ${complete?"⭐":""}</div><div class="bricks">${all.map(w=>`<span class="brick b${getP(w).box}" style="--brick:${colors[i%colors.length]}" title="${esc(w.en)}"></span>`).join("")}</div></div>`; }).join("") || `<p class="subtle">Слова появятся здесь</p>`;
   }
   function renderHome() {
-    view="home"; const total=activeWords().length; const mastered=activeWords().filter(w=>getP(w).box===3).length;
+    view="home";
+    if (!words.length) {
+      app.innerHTML=`<div class="empty"><div class="result-emoji">📚</div><h1>Слова пока не загрузились</h1><p class="subtle">Проверь подключение к таблице и попробуй ещё раз.</p><button class="primary" id="retry">Повторить</button></div>`;
+      document.getElementById("retry").onclick=async()=>{await syncData();renderHome();};
+      return;
+    }
+    const total=activeWords().length; const mastered=activeWords().filter(w=>getP(w).box===3).length;
     app.innerHTML=`<section class="home app"><div class="topline"><span class="brand">АНГЛИЙСКИЕ СЛОВА</span><button class="icon-button small" id="reset" title="Очистить демо-прогресс">Сбросить</button></div><div class="hello"><h1>Привет, ${esc(C.STUDENT_NAME||"Матвей")}!</h1><p class="subtle">Словарь для подсказок и отдельные упражнения для тренировки.</p></div>${window.goalText?`<div class="goal-card">🎯 ${esc(window.goalText)}</div>`:""}<div class="wall-panel"><div class="wall-head"><h2>Твоя стена</h2><span class="subtle">${mastered} из ${total} знают слово</span></div><div class="wall">${wall()}</div></div><div class="panel week"><div><strong>Цель на неделю</strong><div class="subtle">${weekCount()} из ${C.WEEKLY_GOAL||3} занятий</div></div>${dots()}</div><div class="home-actions"><button class="secondary" id="dictionary"><span class="section-label">Раздел 1</span>Словарь-карточки · ${words.length} слов</button><button class="primary" id="start"><span class="section-label">Раздел 2</span>Упражнения</button></div><p class="status">Слова и прогресс хранятся на этом устройстве</p></section>`;
     document.getElementById("start").onclick=startSession;
-    document.getElementById("dictionary").onclick=renderDictionary;
+    document.getElementById("dictionary").onclick=()=>renderDictionary();
     document.getElementById("reset").onclick=()=>{ if(confirm("Сбросить прогресс демо на этом устройстве?")){ localStorage.removeItem(keys.progress);localStorage.removeItem(keys.sessions);localStorage.removeItem(keys.wins);progress={};lessonStars={};renderHome(); } };
   }
   function planSession() {
@@ -139,3 +139,4 @@
   if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
   syncData().then(renderHome);
 })();
+
