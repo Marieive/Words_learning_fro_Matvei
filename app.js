@@ -26,7 +26,7 @@
     if(hasUrl(C.WORDS_CSV_URL)) { try { const fresh=parseCSV(await getText(C.WORDS_CSV_URL)); if(fresh.length){words=fresh;save(keys.words,words);loaded=true;} } catch {} }
     if(!loaded) { const cached=load(keys.words,null); words=Array.isArray(cached)?cached:[]; }
     if(hasUrl(C.GOAL_CSV_URL)) { try { const goal=(await getText(C.GOAL_CSV_URL)).trim().replace(/^"|"$/g,""); window.goalText=goal; } catch { window.goalText=""; } }
-    await flushOutbox();
+    flushOutbox().catch(()=>{});
   }
   function weekStart(d=new Date()) { const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`; }
   function weekCount() { const start=weekStart(); return load(keys.sessions,[]).filter(s=>s.week===start).length; }
@@ -128,9 +128,10 @@
     save(keys.wins,beforeStars); lessonStars=beforeStars;
     const sessions=load(keys.sessions,[]); const session={week:weekStart(),finishedAt:today()}; sessions.push(session);save(keys.sessions,sessions);
     const payload={sessionId:makeSessionId(),student:C.STUDENT_NAME||"Матвей",finishedAt:session.finishedAt,durationSec,correct,total:run.length,weekSessions:weekCount(),words:run};
-    if(hasUrl(C.RESULTS_ENDPOINT)){try{await postSession(payload);}catch{const box=load(keys.outbox,[]);box.push(payload);save(keys.outbox,box);}}
+
     app.innerHTML=`<section class="result app"><div class="topline"><span class="brand">СЕССИЯ ЗАВЕРШЕНА</span></div><div class="result-emoji">🎉</div><h1>Готово, на сегодня всё!</h1><p class="subtle">Отличная работа. Теперь кирпичики стали крепче.</p><div class="panel"><div class="statline"><strong>Кирпичики выросли</strong><strong>🧱 ${run.filter(x=>x.boxAfter>x.boxBefore).length}</strong></div><div class="statline" style="margin-top:12px"><span>Верных ответов</span><strong>${correct} из ${run.length}</strong></div><div class="statline" style="margin-top:12px"><span>Время</span><strong>${Math.floor(durationSec/60)} мин</strong></div></div><div class="panel week"><div><strong>Цель на неделю</strong><div class="subtle">${weekCount()} из ${C.WEEKLY_GOAL||3} занятий</div></div>${dots()}</div><div class="wall-panel"><div class="wall-head"><h2>Твоя стена</h2>${newly.length?`<span>⭐ Новый ряд!</span>`:""}</div><div class="wall">${wall()}</div></div><button class="primary" id="done">На сегодня всё</button></section>`;
     document.getElementById("done").onclick=renderHome;
+    if(hasUrl(C.RESULTS_ENDPOINT)){postSession(payload).catch(()=>{const box=load(keys.outbox,[]);box.push(payload);save(keys.outbox,box);});}
   }
   function makeSessionId(){return window.crypto?.randomUUID?window.crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;}
   async function postSession(payload){const response=await fetch(C.RESULTS_ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});if(!response.ok)throw Error("result endpoint failed");const body=(await response.text()).trim();if(!body)throw Error("empty result endpoint response");try{const result=JSON.parse(body);if(result?.ok===false)throw Error("result was not accepted");}catch(error){if(error.message==="result was not accepted")throw error;/* Existing Apps Script may return plain-text OK. */}}
