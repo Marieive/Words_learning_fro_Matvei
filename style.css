@@ -102,3 +102,10 @@ p { margin:0; }
 .entry-category { justify-self:start; color:#59417e; background:#f1edf6; border-radius:99px; padding:4px 9px; font-size:12px; }
 @media (min-height:760px) { .app { justify-content:center; } .home { min-height:660px; } }
 @media (max-height:700px) { .app { padding-top:10px; padding-bottom:10px; } .home,.session,.result { gap:9px; } .prompt-card { min-height:100px; padding:13px; } .wall { max-height:31svh; } }
+.home .topline .brand,
+.home .topline .icon-button,
+.home .hello h1,
+.home .hello .subtle {
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
